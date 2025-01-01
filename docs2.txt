@@ -1,0 +1,141 @@
+ry Claude 3.5 Sonnet v2 (Vertex AI API - cURL)
+Note: It is always recommended to utilize the pinned version of the model to ensure consistent behavior and avoid potential disruptions to existing workflows when model updates occur.
+
+The following is a sample prompt to the model. To learn more about the possible request parameters, see the Claude Messages API Reference.
+
+Note that the API for Claude on Vertex differs from the Anthropic API documentation in the following ways:
+
+model is not a valid parameter. The model is instead specified in the Google Cloud endpoint URL.
+anthropic_version is a required parameter and must be set to "vertex-2023-10-16".
+Also note that the Anthropic Text Completions API is not available on Vertex AI.
+
+Request JSON body:
+
+For the media type field, Claude 3 models support image/png, image/jpeg, image/gif, or image/webp. The data part of the image is the file bytes encoded to a base64 string (e.g. base64 -i my_image.png).
+{
+  "anthropic_version": "vertex-2023-10-16",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": "image/png",
+            "data": "iVBORw0KGg..."
+          }
+        },
+        {
+          "type": "text",
+          "text": "What is in this image?"
+        }
+      ]
+    }
+  ],
+  "max_tokens": 256,
+  "stream": true
+}Set stream to true to incrementally stream the response using server-sent events. Streaming substantially reduces end-user perception of latency, because the response is returned incrementally as it's generated.
+
+Save the request body in a file named request.json and then execute the following command in Cloud Shell or a local terminal window with the gcloud CLI installed. Authenticate and replace PROJECT_ID with your Google Cloud project ID.
+PROJECT_ID=your-gcp-project-id
+MODEL=claude-3-5-sonnet-v2@20241022
+
+# Pick one region:
+LOCATION=us-east5
+# LOCATION=europe-west1
+
+curl -X POST \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  -d @request.json \
+"https://$LOCATION-aiplatform.googleapis.com/v1/projects/$PROJECT_ID/locations/$LOCATION/publishers/anthropic/models/$MODEL:streamRawPredict"
+Try Claude 3.5 Sonnet v2 (Anthropic's Vertex SDK)
+Note: It is always recommended to utilize the pinned version of the model to ensure consistent behavior and avoid potential disruptions to existing workflows when model updates occur.
+
+There are Anthropic SDKs available for Python and TypeScript.
+
+To install the Anthropic Python SDK:
+python -m pip install -U 'anthropic[vertex]'
+from anthropic import AnthropicVertex
+
+LOCATION="us-east5" # or "europe-west1"
+
+client = AnthropicVertex(region=LOCATION, project_id="PROJECT_ID")
+
+message = client.messages.create(
+  max_tokens=1024,
+  messages=[
+    {
+      "role": "user",
+      "content": "Send me a recipe for banana bread.",
+    }
+  ],
+  model="claude-3-5-sonnet-v2@20241022",
+)
+print(message.model_dump_json(indent=2))
+To use the SDK to stream messages:
+
+from anthropic import AnthropicVertex
+
+LOCATION="us-east5" # or "europe-west1"
+
+client = AnthropicVertex(region=LOCATION, project_id="PROJECT_ID")
+
+with client.messages.stream(
+  max_tokens=1024,
+  messages=[
+    {
+      "role": "user",
+      "content": "Send me a recipe for banana bread.",
+    }
+  ],
+  model="claude-3-5-sonnet-v2@20241022",
+) as stream:
+  for text in stream.text_stream:
+    print(text)
+    To use the SDK to process images:
+
+import base64
+import httpx
+from anthropic import AnthropicVertex
+
+LOCATION="us-east5" # or "europe-west1"
+
+client = AnthropicVertex(region=LOCATION, project_id="PROJECT_ID")
+
+image1_url = "https://upload.wikimedia.org/wikipedia/commons/a/a7/Camponotus_flavomarginatus_ant.jpg"
+image1_media_type = "image/jpeg"
+image1_data = base64.b64encode(httpx.get(image1_url).content).decode("utf-8")
+
+message = client.messages.create(
+  max_tokens=1024,
+  messages=[
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "media_type": image1_media_type,
+            "data": image1_data,
+          },
+        },
+        {
+          "type": "text",
+          "text": "Describe this image."
+        }
+      ],
+    }
+  ],
+  model="claude-3-5-sonnet-v2@20241022",
+)
+print(message.model_dump_json(indent=2))
+
+Model ID
+
+publishers/anthropic/models/claude-3-5-sonnet-v2
+
+Version name
+claude-3-5-sonnet-v2@20241022 
