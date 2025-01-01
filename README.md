@@ -133,6 +133,50 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## Deployment
+
+### Deploy to Google Cloud Run
+
+1. Install the Google Cloud SDK and authenticate:
+```bash
+gcloud auth login
+gcloud config set project your-project-id
+```
+
+2. Enable required APIs:
+```bash
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
+```
+
+3. Set up service account for Cloud Run:
+```bash
+# Create service account
+gcloud iam service-accounts create claude-vertex-bridge \
+    --display-name="Claude Vertex Bridge Service Account"
+
+# Grant required permissions
+gcloud projects add-iam-policy-binding your-project-id \
+    --member="serviceAccount:claude-vertex-bridge@your-project-id.iam.gserviceaccount.com" \
+    --role="roles/aiplatform.user"
+```
+
+4. Deploy using Cloud Build:
+```bash
+gcloud builds submit --config cloudbuild.yaml \
+    --substitutions=_REGION="us-east5",_VERTEX_AI_ENDPOINT="https://us-east5-aiplatform.googleapis.com/v1/projects/your-project-id/locations/us-east5/publishers/anthropic/models/claude-3-5-sonnet-v2@20241022:streamRawPredict"
+```
+
+The deployment will:
+- Build the Docker container
+- Push it to Google Container Registry
+- Deploy to Cloud Run
+- Set up environment variables
+- Configure the service to be publicly accessible
+
+After deployment, you'll receive a URL where the service is accessible. You can use this URL as a drop-in replacement for the OpenAI API endpoint.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

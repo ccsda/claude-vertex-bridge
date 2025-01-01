@@ -1,0 +1,36 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/claude-vertex-bridge', '.']
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/claude-vertex-bridge']
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'claude-vertex-bridge'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/claude-vertex-bridge'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'GOOGLE_CLOUD_PROJECT=${PROJECT_ID}'
+      - '--set-env-vars'
+      - 'GOOGLE_CLOUD_LOCATION=${_REGION}'
+      - '--set-env-vars'
+      - 'VERTEX_AI_ENDPOINT=${_VERTEX_AI_ENDPOINT}'
+
+substitutions:
+  _REGION: us-east5  # Default region
+  _VERTEX_AI_ENDPOINT: https://us-east5-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/us-east5/publishers/anthropic/models/claude-3-5-sonnet-v2@20241022:streamRawPredict
+
+images:
+  - 'gcr.io/$PROJECT_ID/claude-vertex-bridge'
