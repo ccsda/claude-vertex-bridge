@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from google.cloud import aiplatform
 from pydantic import BaseModel, Field
@@ -10,6 +10,7 @@ import httpx
 import json
 import os
 import time
+import secrets
 
 # Data Models
 class ImageSource(BaseModel):
@@ -111,6 +112,39 @@ def transform_response(response_data: Dict[str, Any]) -> ChatCompletionResponse:
         )
     )
 
+def get_api_keys():
+    """Retrieve API keys from environment variable."""
+    api_keys_str = os.getenv("API_KEYS")
+    if api_keys_str:
+        return api_keys_str.split(",")
+    else:
+        return []
+
+async def verify_api_key(api_key: str = Depends(lambda request: request.headers.get("X-API-Key"))):
+    """Verify API key from request header."""
+    valid_api_keys = get_api_keys()
+    if not valid_api_keys:
+        return  # No API keys set, allow all requests
+
+    if api_key and api_key in valid_api_keys:
+        return
+    else:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+@app.middleware("http")
+async def check_api_key(request: Request, call_next):
+    """Middleware to check API key for all requests."""
+    if request.url.path.startswith("/v1/"):
+        try:
+            await verify_api_key(request.headers.get("X-API-Key"))
+        except HTTPException as e:
+            return JSONResponse(
+                status_code=e.status_code,
+                content={"detail": e.detail}
+            )
+    response = await call_next(request)
+    return response
+
 @app.on_event("startup")
 async def startup_event():
     """Validate environment configuration on startup."""
@@ -127,8 +161,7 @@ async def startup_event():
             f"Missing required environment variables: {', '.join(missing_vars)}"
         )
 
-
-@app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
+@app.post("/v1/chat/completions", response_model=ChatCompletionResponse, dependencies=[Depends(verify_api_key)])
 async def create_chat_completion(request: ChatCompletionRequest):
     """Handle chat completion requests."""
     try:
@@ -138,22 +171,22 @@ async def create_chat_completion(request: ChatCompletionRequest):
         # Transform request to Claude 3.5 format
         claude_request = transform_request(request)
         print(f"Transformed request: {claude_request}")
-        
-        # Get authentication token
-        auth_token = os.popen("gcloud auth print-access-token").read().strip()
-        if not auth_token:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to get authentication token"
-            )
-        
+        cloud_run_base_url = "https://claude-vertex-bridge-434578471503.us-east5.run.app"
+        endpoint_url = f"{cloud_run_base_url}/v1/chat/completions"
+
+        # Get authentication token (if needed - currently allowing unauthenticated)
+        # auth_token = os.popen("gcloud auth print-access-token").read().strip()
+        # if not auth_token:
+        #     raise HTTPException(
+        #         status_code=500,
+        #         detail="Failed to get authentication token"
+        #     )
+
         headers = {
-            "Authorization": f"Bearer {auth_token}",
+            # "Authorization": f"Bearer {auth_token}", # (if needed - currently allowing unauthenticated)
             "Content-Type": "application/json; charset=utf-8"
         }
-        
-        endpoint_url = os.getenv("VERTEX_AI_ENDPOINT")
-        
+
         async def stream_response():
             async with httpx.AsyncClient() as client:
                 async with client.stream(
@@ -168,9 +201,9 @@ async def create_chat_completion(request: ChatCompletionRequest):
                         print(f"Error response: {error_content}")
                         raise HTTPException(
                             status_code=response.status_code,
-                            detail=f"Vertex AI Error: {error_content.decode()}"
+                            detail=f"Error: {error_content.decode()}"
                         )
-                    
+
                     if request.stream:
                         current_content = ""
                         async for line in response.aiter_lines():
@@ -204,12 +237,12 @@ async def create_chat_completion(request: ChatCompletionRequest):
                         response_data = json.loads(content)
                         transformed_data = transform_response(response_data)
                         yield json.dumps(transformed_data.dict())
-        
+
         return StreamingResponse(
             stream_response(),
             media_type="text/event-stream" if request.stream else "application/json"
         )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
