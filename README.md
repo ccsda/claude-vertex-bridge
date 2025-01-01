@@ -22,7 +22,7 @@ A FastAPI server that provides an OpenAI-compatible API interface for Claude 3.5
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/xexefe121/claude-vertex-bridge.git
+git clone https://github.com/ccsda/claude-vertex-bridge.git
 cd claude-vertex-bridge
 ```
 
