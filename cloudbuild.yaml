@@ -13,10 +13,6 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'claude-vertex-bridge'
-      - '--image'
-      - 'deploy'
-      - 'claude-vertex-bridge'
       - '--image'
       - 'gcr.io/$PROJECT_ID/claude-vertex-bridge'
       - '--region'
